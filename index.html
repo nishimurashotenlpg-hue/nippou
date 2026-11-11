@@ -1,0 +1,279 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex">
+<title>日報・売上</title>
+<style>
+:root{
+  --bg:#eef1f4; --paper:#fff; --rule:#d5dde6; --ink:#1d2a3a; --muted:#5d6b7c;
+  --blue:#1f4fa3; --blue-soft:#e3ebf8; --grey-soft:#eceff3; --red:#c0392b; --red-soft:#fbe9e6; --ok:#2e7d4f;
+}
+@media (prefers-color-scheme:dark){:root{
+  --bg:#12171d; --paper:#1b222b; --rule:#2c3643; --ink:#e6ebf1; --muted:#9aa8b8;
+  --blue:#7fa6ea; --blue-soft:#1f2c42; --grey-soft:#232b35; --red:#ef7f70; --red-soft:#3a2321; --ok:#6fcf97; color-scheme:dark}}
+*{box-sizing:border-box}
+[hidden]{display:none!important}
+body{margin:0;background:var(--bg);color:var(--ink);font-family:"Hiragino Sans","Yu Gothic UI","Meiryo",sans-serif;font-size:16px;line-height:1.6;padding:16px 14px 64px}
+.wrap{max-width:480px;margin:0 auto;display:flex;flex-direction:column;gap:14px}
+h1{font-size:19px;margin:0}
+h2{font-size:14px;margin:0;color:var(--muted)}
+.note{margin:0;color:var(--muted);font-size:13px}
+.card{background:var(--paper);border-radius:12px;padding:14px;display:flex;flex-direction:column;gap:12px}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.field{display:flex;flex-direction:column;gap:5px;min-width:0}
+.label{font-size:13px;font-weight:700;color:var(--muted)}
+input,select,textarea{font:inherit;font-size:16px;padding:9px 11px;border:1.5px solid var(--rule);border-radius:8px;background:var(--paper);color:var(--ink);width:100%}
+textarea{min-height:64px;resize:vertical}
+.entry{border:1.5px solid var(--rule);border-radius:12px;padding:12px;display:flex;flex-direction:column;gap:10px;background:var(--paper)}
+.entry.uri{border-color:var(--blue)}
+.entry .hd{display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap}
+.tag{font-size:12px;font-weight:700;padding:2px 10px;border-radius:99px}
+.tag.uri{background:var(--blue-soft);color:var(--blue)}
+.tag.sagyo{background:var(--grey-soft);color:var(--muted)}
+.who{font-size:12px;color:var(--muted)}
+.msg{font-size:13px;background:var(--red-soft);color:var(--red);border-radius:8px;padding:6px 10px}
+.link{border:0;background:transparent;color:var(--muted);font-size:13px;cursor:pointer;text-decoration:underline;padding:0}
+.choose{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.choose button{font:inherit;font-size:16px;font-weight:700;border-radius:10px;padding:14px 8px;cursor:pointer;border:1.5px solid var(--rule);background:var(--paper);color:var(--ink);display:flex;flex-direction:column;align-items:center}
+.choose button small{font-weight:400;font-size:12px;color:var(--muted)}
+.choose button.u{border-color:var(--blue);color:var(--blue)}
+.chips{display:flex;flex-wrap:wrap;gap:6px}
+.chips label{font-size:14px;border:1.5px solid var(--rule);border-radius:99px;padding:4px 10px;display:flex;gap:4px;align-items:center}
+.chips input{width:auto;margin:0}
+.worker{display:grid;grid-template-columns:1fr auto;align-items:center;gap:8px;padding:5px 10px;border:1.5px solid var(--rule);border-radius:8px}
+.worker.on{border-color:var(--blue)}
+.rate{font-size:12px;color:var(--muted)}
+.step{display:flex;align-items:center;gap:6px}
+.step button{width:38px;height:38px;font-size:20px;border-radius:8px;border:1.5px solid var(--rule);background:var(--paper);color:var(--ink);cursor:pointer}
+.step output{min-width:46px;text-align:center;font-weight:700;color:var(--blue)}
+.part{display:grid;grid-template-columns:1fr 70px 28px;gap:6px;align-items:center}
+.add{font:inherit;font-size:15px;border:1.5px dashed var(--rule);color:var(--muted);background:transparent;border-radius:8px;padding:8px;cursor:pointer}
+.done{align-items:center;text-align:center;padding:28px 18px}
+.done .mark{width:64px;height:64px;border-radius:50%;background:var(--ok);color:#fff;font-size:36px;line-height:64px;font-weight:700}
+.done h2{font-size:21px;color:var(--ink)}
+.done .sub{margin:0;color:var(--muted);font-size:14px}
+.done ul{list-style:none;margin:0;padding:0;width:100%;text-align:left;display:flex;flex-direction:column;gap:6px}
+.done li{border:1.5px solid var(--rule);border-radius:8px;padding:8px 12px;font-size:15px}
+.done li.u{border-color:var(--blue)}
+.done li small{display:block;color:var(--muted);font-size:13px}
+.done .primary,.done .second{width:100%}
+.second{font:inherit;font-size:16px;font-weight:700;border:1.5px solid var(--blue);color:var(--blue);background:var(--paper);border-radius:10px;padding:12px;cursor:pointer}
+.primary{font:inherit;font-size:17px;font-weight:700;border:0;border-radius:10px;padding:14px;background:var(--blue);color:#fff;cursor:pointer}
+.primary:disabled{opacity:.5}
+.toast{position:fixed;left:50%;transform:translateX(-50%);bottom:20px;background:var(--ink);color:var(--paper);padding:10px 16px;border-radius:8px;font-size:14px;max-width:90vw;z-index:9}
+hr{border:0;border-top:1px dashed var(--rule);margin:4px 0}
+#loading{text-align:center;color:var(--muted);padding:40px 0}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>日報・売上</h1>
+  <div id="loading">読み込み中…</div>
+  <form class="card" id="f" onsubmit="return false" hidden>
+    <div class="grid2">
+      <div class="field"><label class="label" for="nm">氏名</label><select id="nm"></select></div>
+      <div class="field"><label class="label" for="d">日付</label><input id="d" type="date"></div>
+    </div>
+    <h2>今日の仕事</h2>
+    <p class="note" id="empty">下のボタンで、仕事を1件ずつ足してください。</p>
+    <div id="entries" style="display:flex;flex-direction:column;gap:12px"></div>
+    <div class="field">
+      <span class="label">仕事を追加</span>
+      <div class="choose">
+        <button type="button" class="u" id="addU">売上<small>お客様に請求する仕事</small></button>
+        <button type="button" id="addS">作業<small>配送・点検・事務など</small></button>
+      </div>
+    </div>
+    <hr>
+    <div class="grid2">
+      <div class="field"><label class="label" for="tam">明日午前の予定</label><textarea id="tam"></textarea></div>
+      <div class="field"><label class="label" for="tpm">明日午後の予定</label><textarea id="tpm"></textarea></div>
+    </div>
+    <div class="field"><label class="label" for="trb">困りごと・連絡</label><textarea id="trb" placeholder="なければ空欄"></textarea></div>
+    <button type="button" class="primary" id="save">日報を送る</button>
+  </form>
+  <section class="card done" id="done" hidden aria-live="polite">
+    <div class="mark" aria-hidden="true">✓</div>
+    <h2>日報を送信しました</h2>
+    <p class="sub" id="doneWho"></p>
+    <ul id="doneList"></ul>
+    <p class="note">同じ現場の売上は、一緒に作業した人の日報にも出ています。<br>間違いに気づいたら、いつでも直して送り直せます。</p>
+    <button type="button" class="second" id="back">内容を見る・直す</button>
+  </section>
+</div>
+<datalist id="custs"></datalist>
+<datalist id="items"></datalist>
+<div class="toast" id="toast" hidden></div>
+
+<script>
+var KEY = new URLSearchParams(location.search).get('k') || '';
+var EXEC = 'https://script.google.com/macros/s/AKfycbwvJh6uGLWxigKGwsdFlCRKgAdirkXO1Aw_qmq2eg8XHQGhGJnx4P1K-EHMO698yL0m/exec';
+/* google.script.run と同じ書き方で、Webアプリ本体へ fetch で送る（スマホの複数アカウント対策） */
+var run = (function () {
+  function make(ok, ng) {
+    var o = {
+      withSuccessHandler: function (f) { return make(f, ng); },
+      withFailureHandler: function (f) { return make(ok, f); }
+    };
+    ['apiInit', 'apiLoad', 'apiSubmit', 'apiDeleteSale'].forEach(function (name) {
+      o[name] = function () {
+        var args = [].slice.call(arguments);
+        fetch(EXEC, { method: 'POST', credentials: 'omit', body: JSON.stringify({ api: name, args: args }) })
+          .then(function (r) { if (!r.ok) throw new Error('通信エラー ' + r.status); return r.json(); })
+          .then(function (j) { if (!j.ok) throw new Error(j.error || '失敗しました'); if (ok) ok(j.result); })
+          .catch(function (e) { if (ng) ng(e && e.message === 'Failed to fetch' ? new Error('通信できませんでした。電波の良い所でもう一度押してください') : e); });
+      };
+    });
+    return o;
+  }
+  return make(null, null);
+})();
+var INIT = null, entries = [], dirty = false;
+var $ = function (id) { return document.getElementById(id); };
+function yen(n) { return n.toLocaleString('ja-JP') + '円'; }
+function esc(s) { return String(s == null ? '' : s).replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); }
+function toast(t, ms) { var e = $('toast'); e.textContent = t; e.hidden = false; clearTimeout(toast.t); toast.t = setTimeout(function () { e.hidden = true; }, ms || 3000); }
+function store(k, v) { try { if (v === undefined) return localStorage.getItem(k); localStorage.setItem(k, v); } catch (e) { return null; } }
+function today() { var d = new Date(); d.setMinutes(d.getMinutes() - d.getTimezoneOffset()); return d.toISOString().slice(0, 10); }
+function fail(e) { if (!INIT) $('loading').textContent = '読み込めませんでした。電波の良い所で、ページを開き直してください（' + (e && e.message || e) + '）'; else $('loading').hidden = true; toast('エラー: ' + (e && e.message || e), 6000); $('save').disabled = false; $('save').textContent = '日報を送る'; }
+function hoursText(h) { return INIT.workers.filter(function (n) { return h && h[n] > 0; }).map(function (n) { return n + ' ' + h[n] + 'h'; }).join('・'); }
+function showDone(name, date) {
+  var d = date.split('-');
+  $('doneWho').textContent = name + '　' + Number(d[1]) + '月' + Number(d[2]) + '日の日報';
+  $('doneList').innerHTML = entries.length ? entries.map(function (e) {
+    if (e.t === 'u') return '<li class="u"><b>売上</b>　' + esc(e.customer) + (e.work ? '（' + esc(e.work) + '）' : '') +
+      '<small>' + esc(hoursText(e.hours) || '作業者なし') + (e.parts && e.parts.filter(function (p) { return p.name; }).length ? '　部材 ' + e.parts.filter(function (p) { return p.name; }).length + '点' : '') + '</small></li>';
+    return '<li><b>作業</b>　' + esc(e.slot) + ' ' + esc(e.text || '') + '<small>' + esc(e.status || '') + '</small></li>';
+  }).join('') : '<li>仕事の入力はありません</li>';
+  $('f').hidden = true; $('done').hidden = false;
+  window.scrollTo(0, 0);
+}
+$('back').onclick = function () { $('done').hidden = true; $('f').hidden = false; window.scrollTo(0, 0); };
+
+if (!KEY) { $('loading').textContent = 'このURLは使えません。LINEに届いた日報のURLから開いてください。'; } else run.withSuccessHandler(function (init) {
+  INIT = init;
+  $('nm').innerHTML = '<option value="">選んでください</option>' + init.staff.map(function (n) { return '<option>' + n + '</option>'; }).join('');
+  $('nm').value = store('nippou_name') || '';
+  $('d').value = today();
+  $('custs').innerHTML = init.customers.map(function (c) { return '<option value="' + esc(c[0]) + '" label="' + esc((c[2] || '') + ' ' + c[1]) + '">'; }).join('');
+  $('items').innerHTML = init.items.map(function (i) { return '<option value="' + esc(i[0]) + '">'; }).join('');
+  $('loading').hidden = true; $('f').hidden = false;
+  load();
+}).withFailureHandler(fail).apiInit(KEY);
+
+function load() {
+  var name = $('nm').value;
+  entries = []; draw();
+  if (!name) return;
+  store('nippou_name', name);
+  $('loading').hidden = false;
+  run.withSuccessHandler(function (r) {
+    $('loading').hidden = true;
+    var n = r.nippou;
+    $('tam').value = n ? n['明日午前の予定'] : '';
+    $('tpm').value = n ? n['明日午後の予定'] : '';
+    $('trb').value = n ? n['困りごと・連絡'] : '';
+    entries = r.works.map(function (w) {
+      return { t: 's', slot: w['時間帯'], text: w['作業内容'], categories: w['作業区分'] ? w['作業区分'].split(', ') : [], status: w['完了状況'] };
+    }).concat(r.sales.map(function (s) { s.t = 'u'; return s; }));
+    draw();
+    if (n) toast('この日の日報は送信済みです。直して送り直せます');
+  }).withFailureHandler(fail).apiLoad(KEY, name, $('d').value);
+}
+$('nm').onchange = load;
+$('d').onchange = load;
+
+function newSale() { return { t: 'u', id: '', customer: '', code: '', work: '', hours: {}, parts: [{ name: '', qty: '1' }] }; }
+$('addU').onclick = function () { var s = newSale(); var me = $('nm').value; if (INIT.workers.indexOf(me) !== -1) s.hours[me] = 1; entries.push(s); draw(); };
+$('addS').onclick = function () { entries.push({ t: 's', slot: '午前', text: '', categories: [], status: 'すべて完了' }); draw(); };
+
+function draw() {
+  var box = $('entries'); box.innerHTML = '';
+  $('empty').hidden = entries.length > 0;
+  entries.forEach(function (e, i) {
+    var el = document.createElement('div');
+    el.className = 'entry' + (e.t === 'u' ? ' uri' : '');
+    var me = $('nm').value;
+    var who = e.t === 'u' && e.enteredBy ? '<span class="who">' + esc(e.enteredBy) + 'が入力' + (e.updatedBy && e.updatedBy !== e.enteredBy ? '・' + esc(e.updatedBy) + 'が修正' : '') + (e.invoice === '作成済み' ? '・請求書作成済み' : '') + '</span>' : '';
+    var head = '<div class="hd"><span class="tag ' + (e.t === 'u' ? 'uri">' : 'sagyo">') + (i + 1) + '．' + (e.t === 'u' ? '売上' : '作業') + '</span>' + who + '<button type="button" class="link" data-del>この行を消す</button></div>' + (e.message ? '<div class="msg">' + esc(e.message) + '</div>' : '');
+    if (e.t === 's') {
+      el.innerHTML = head +
+        '<div class="grid2" style="grid-template-columns:96px 1fr"><select data-k="slot" aria-label="時間帯">' + INIT.slots.map(function (v) { return '<option' + (v === e.slot ? ' selected' : '') + '>' + v + '</option>'; }).join('') + '</select>' +
+        '<input data-k="text" aria-label="作業内容" value="' + esc(e.text) + '" placeholder="例 配送、保安点検、事務作業"></div>' +
+        '<div class="chips">' + INIT.categories.map(function (c) { return '<label><input type="checkbox" value="' + c + '"' + (e.categories.indexOf(c) !== -1 ? ' checked' : '') + '>' + c + '</label>'; }).join('') + '</div>' +
+        '<select data-k="status" aria-label="完了状況">' + INIT.statuses.map(function (v) { return '<option' + (v === e.status ? ' selected' : '') + '>' + v + '</option>'; }).join('') + '</select>';
+      el.querySelectorAll('.chips input').forEach(function (c) {
+        c.onchange = function () { e.categories = [].slice.call(el.querySelectorAll('.chips input:checked')).map(function (x) { return x.value; }); dirty = true; };
+      });
+    } else {
+      el.innerHTML = head +
+        '<div class="grid2"><div class="field"><label class="label">お客様</label><input list="custs" data-k="customer" value="' + esc(e.customer) + '" placeholder="名前の一部"></div>' +
+        '<div class="field"><label class="label">作業内容</label><input data-k="work" value="' + esc(e.work) + '" placeholder="例 浴室水栓取替"></div></div>' +
+        '<div class="field"><span class="label">作業者と時間（0.5時間から）</span><div data-workers style="display:flex;flex-direction:column;gap:5px"></div></div>' +
+        '<div class="field"><span class="label">部材と数量</span><div data-parts style="display:flex;flex-direction:column;gap:6px"></div><button type="button" class="add" data-addp>＋ 部材を追加</button></div>';
+      var wbox = el.querySelector('[data-workers]');
+      INIT.workers.forEach(function (n) {
+        var h = e.hours[n] || 0;
+        var row = document.createElement('div');
+        row.className = 'worker' + (h > 0 ? ' on' : '');
+        row.innerHTML = '<div><b>' + n + '</b></div><div class="step"><button type="button" aria-label="' + n + 'を減らす">−</button><output>' + (h ? h + 'h' : '—') + '</output><button type="button" aria-label="' + n + 'を増やす">＋</button></div>';
+        var b = row.querySelectorAll('button');
+        b[0].onclick = function () { e.hours[n] = Math.max(0, h - 0.5); dirty = true; draw(); };
+        b[1].onclick = function () { e.hours[n] = h + 0.5; dirty = true; draw(); };
+        wbox.appendChild(row);
+      });
+      var pbox = el.querySelector('[data-parts]');
+      e.parts.forEach(function (p, j) {
+        var row = document.createElement('div'); row.className = 'part';
+        row.innerHTML = '<input list="items" aria-label="部材名" value="' + esc(p.name) + '" placeholder="部材名"><input aria-label="数量" inputmode="decimal" style="text-align:right" value="' + esc(p.qty) + '"><button type="button" class="link" aria-label="部材を消す">×</button>';
+        row.children[0].oninput = function () { p.name = this.value; dirty = true; };
+        row.children[1].oninput = function () { p.qty = this.value; dirty = true; };
+        row.children[2].onclick = function () { e.parts.splice(j, 1); dirty = true; draw(); };
+        pbox.appendChild(row);
+      });
+      el.querySelector('[data-addp]').onclick = function () { e.parts.push({ name: '', qty: '1' }); draw(); };
+    }
+    el.querySelectorAll('[data-k]').forEach(function (inp) { inp.oninput = inp.onchange = function () { e[inp.dataset.k] = inp.value; dirty = true; }; });
+    el.querySelector('[data-del]').onclick = function () {
+      if (e.t === 'u' && e.id) {
+        if (el.dataset.ask !== '1') { el.dataset.ask = '1'; this.textContent = 'もう一度押すと消します（作業者全員の日報から消えます）'; return; }
+        run.withSuccessHandler(function () { entries.splice(i, 1); draw(); toast('売上を消しました'); }).withFailureHandler(fail).apiDeleteSale(KEY, $('nm').value, e.id);
+        return;
+      }
+      entries.splice(i, 1); draw();
+    };
+    box.appendChild(el);
+  });
+}
+
+$('save').onclick = function () {
+  var name = $('nm').value;
+  if (!name) return toast('氏名を選んでください');
+  if (!entries.length) return toast('仕事を1件以上入れてください');
+  var bad = entries.filter(function (e) { return e.t === 'u' && !String(e.customer).trim(); });
+  if (bad.length) return toast('売上のお客様名が空です');
+  $('save').disabled = true; $('save').textContent = '送信中…';
+  var payload = {
+    name: name, date: $('d').value, tomorrowAm: $('tam').value, tomorrowPm: $('tpm').value, trouble: $('trb').value,
+    works: entries.filter(function (e) { return e.t === 's'; }),
+    sales: entries.filter(function (e) { return e.t === 'u'; }).map(function (e) {
+      return { id: e.id, baseUpdated: e.baseUpdated, customer: e.customer, code: e.code, work: e.work, hours: e.hours, parts: e.parts };
+    })
+  };
+  run.withSuccessHandler(function (r) {
+    $('save').disabled = false; $('save').textContent = '日報を送る'; dirty = false;
+    var works = entries.filter(function (e) { return e.t === 's'; });
+    var sales = r.saved.concat(r.conflicts.filter(function (c) { return c.id; }), r.duplicates)
+      .map(function (s) { s.t = 'u'; return s; });
+    entries = works.concat(sales);
+    draw();
+    if (r.conflicts.length || r.duplicates.length) toast('確認が必要な売上があります（赤字）。直して、もう一度「日報を送る」を押してください', 7000);
+    else showDone(name, payload.date);
+  }).withFailureHandler(fail).apiSubmit(KEY, payload);
+};
+window.onbeforeunload = function () { if (dirty) return '送信していない内容があります'; };
+</script>
+</body>
+</html>
