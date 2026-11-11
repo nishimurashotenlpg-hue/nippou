@@ -152,35 +152,68 @@ function showDone(name, date) {
 }
 $('back').onclick = function () { $('done').hidden = true; $('f').hidden = false; window.scrollTo(0, 0); };
 
-if (!KEY) { $('loading').textContent = 'このURLは使えません。LINEに届いた日報のURLから開いてください。'; } else run.withSuccessHandler(function (init) {
+/* 速く開くための工夫（2026-11-11）
+   ・氏名/お客様/部材の候補はスマホに保存しておき、次からはすぐ画面を出す（裏で最新に入れ替える）
+   ・初めて開くときも、候補とその日の日報を同時に取りに行く */
+var INIT_STORE = 'nippou_init_v1';
+function applyInit(init) {
+  var cur = $('nm').value || store('nippou_name') || '';
   INIT = init;
   $('nm').innerHTML = '<option value="">選んでください</option>' + init.staff.map(function (n) { return '<option>' + n + '</option>'; }).join('');
-  $('nm').value = store('nippou_name') || '';
-  $('d').value = today();
+  $('nm').value = init.staff.indexOf(cur) !== -1 ? cur : '';
   $('custs').innerHTML = init.customers.map(function (c) { return '<option value="' + esc(c[0]) + '" label="' + esc((c[2] || '') + ' ' + c[1]) + '">'; }).join('');
   $('items').innerHTML = init.items.map(function (i) { return '<option value="' + esc(i[0]) + '">'; }).join('');
-  $('loading').hidden = true; $('f').hidden = false;
-  load();
-}).withFailureHandler(fail).apiInit(KEY);
+}
+
+if (!KEY) { $('loading').textContent = 'このURLは使えません。LINEに届いた日報のURLから開いてください。'; } else (function () {
+  $('d').value = today();
+  var cached = null;
+  try { cached = JSON.parse(store(INIT_STORE) || 'null'); } catch (e) { cached = null; }
+  var early = null, initReady = false, name0 = store('nippou_name') || '', seq0;
+  if (cached && cached.staff) {
+    applyInit(cached); $('f').hidden = false; load();
+  } else if (name0) {
+    seq0 = load.seq = (load.seq || 0) + 1;
+    run.withSuccessHandler(function (r) { early = r; if (initReady) useEarly(); }).withFailureHandler(fail).apiLoad(KEY, name0, $('d').value);
+  }
+  function useEarly() {
+    if (seq0 !== load.seq || $('nm').value !== name0) return load();
+    $('loading').hidden = true; showDay(early);
+  }
+  run.withSuccessHandler(function (init) {
+    store(INIT_STORE, JSON.stringify(init));
+    applyInit(init);
+    if (cached && cached.staff) return;           // 画面はもう出ている。候補だけ最新にした
+    initReady = true; $('f').hidden = false;
+    if (!name0 || $('nm').value !== name0) { $('loading').hidden = true; return load(); }
+    if (early) useEarly(); else { entries = []; draw(); }
+  }).withFailureHandler(fail).apiInit(KEY);
+})();
 
 function load() {
   var name = $('nm').value;
   entries = []; draw();
-  if (!name) return;
+  if (!name) { $('loading').hidden = true; return; }
   store('nippou_name', name);
   $('loading').hidden = false;
+  var seq = load.seq = (load.seq || 0) + 1;
   run.withSuccessHandler(function (r) {
+    if (seq !== load.seq) return;                 // 氏名や日付を変えたあとの古い返事は捨てる
     $('loading').hidden = true;
-    var n = r.nippou;
-    $('tam').value = n ? n['明日午前の予定'] : '';
-    $('tpm').value = n ? n['明日午後の予定'] : '';
-    $('trb').value = n ? n['困りごと・連絡'] : '';
-    entries = r.works.map(function (w) {
-      return { t: 's', slot: w['時間帯'], text: w['作業内容'], categories: w['作業区分'] ? w['作業区分'].split(', ') : [], status: w['完了状況'] };
-    }).concat(r.sales.map(function (s) { s.t = 'u'; return s; }));
-    draw();
-    if (n) toast('この日の日報は送信済みです。直して送り直せます');
+    showDay(r);
   }).withFailureHandler(fail).apiLoad(KEY, name, $('d').value);
+}
+
+function showDay(r) {
+  var n = r.nippou;
+  $('tam').value = n ? n['明日午前の予定'] : '';
+  $('tpm').value = n ? n['明日午後の予定'] : '';
+  $('trb').value = n ? n['困りごと・連絡'] : '';
+  entries = r.works.map(function (w) {
+    return { t: 's', slot: w['時間帯'], text: w['作業内容'], categories: w['作業区分'] ? w['作業区分'].split(', ') : [], status: w['完了状況'] };
+  }).concat(r.sales.map(function (s) { s.t = 'u'; return s; }));
+  draw();
+  if (n) toast('この日の日報は送信済みです。直して送り直せます');
 }
 $('nm').onchange = load;
 $('d').onchange = load;
