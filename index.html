@@ -68,6 +68,18 @@ textarea{min-height:64px;resize:vertical}
 .toast{position:fixed;left:50%;transform:translateX(-50%);bottom:20px;background:var(--ink);color:var(--paper);padding:10px 16px;border-radius:8px;font-size:14px;max-width:90vw;z-index:9}
 hr{border:0;border-top:1px dashed var(--rule);margin:4px 0}
 #loading{text-align:center;color:var(--muted);padding:40px 0}
+.hbar{display:flex;justify-content:space-between;align-items:center;gap:8px}
+.hlist{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:6px}
+.hlist button{width:100%;text-align:left;font:inherit;font-size:15px;color:var(--ink);background:var(--paper);border:1.5px solid var(--rule);border-radius:8px;padding:8px 12px;cursor:pointer;display:flex;flex-direction:column;gap:2px}
+.hlist button.none{background:var(--grey-soft);border-style:dashed}
+.hlist .top{display:flex;justify-content:space-between;align-items:center;gap:8px}
+.hlist small{color:var(--muted);font-size:13px}
+.hlist .s{font-size:13px}
+.badge{font-size:12px;font-weight:700;padding:1px 8px;border-radius:99px;white-space:nowrap}
+.badge.ok{background:var(--blue-soft);color:var(--blue)}
+.badge.ng{background:var(--red-soft);color:var(--red)}
+.badge.off{background:transparent;color:var(--muted)}
+.badge.cont{background:var(--grey-soft);color:var(--ink)}
 </style>
 </head>
 <body>
@@ -79,6 +91,7 @@ hr{border:0;border-top:1px dashed var(--rule);margin:4px 0}
       <div class="field"><label class="label" for="nm">氏名</label><select id="nm"></select></div>
       <div class="field"><label class="label" for="d">日付</label><input id="d" type="date"></div>
     </div>
+    <button type="button" class="second" id="openHist">これまでの入力を見る・直す</button>
     <h2>今日の仕事</h2>
     <p class="note" id="empty">下のボタンで、仕事を1件ずつ足してください。</p>
     <div id="entries" style="display:flex;flex-direction:column;gap:12px"></div>
@@ -97,6 +110,12 @@ hr{border:0;border-top:1px dashed var(--rule);margin:4px 0}
     <div class="field"><label class="label" for="trb">困りごと・連絡</label><textarea id="trb" placeholder="なければ空欄"></textarea></div>
     <button type="button" class="primary" id="save">日報を送る</button>
   </form>
+  <section class="card" id="hist" hidden>
+    <div class="hbar"><h2 id="histWho">これまでの入力</h2><button type="button" class="link" id="histClose">閉じる</button></div>
+    <p class="note">日付を押すと、その日の日報を開きます。直して「日報を送る」を押せば上書きされます。</p>
+    <ul class="hlist" id="histList"></ul>
+    <button type="button" class="add" id="histMore">もっと前を見る</button>
+  </section>
   <section class="card done" id="done" hidden aria-live="polite">
     <div class="mark" aria-hidden="true">✓</div>
     <h2>日報を送信しました</h2>
@@ -120,7 +139,7 @@ var run = (function () {
       withSuccessHandler: function (f) { return make(f, ng); },
       withFailureHandler: function (f) { return make(ok, f); }
     };
-    ['apiInit', 'apiLoad', 'apiSubmit', 'apiDeleteSale'].forEach(function (name) {
+    ['apiInit', 'apiLoad', 'apiList', 'apiSubmit', 'apiDeleteSale'].forEach(function (name) {
       o[name] = function () {
         var args = [].slice.call(arguments);
         fetch(EXEC, { method: 'POST', credentials: 'omit', body: JSON.stringify({ api: name, args: args }) })
@@ -235,6 +254,47 @@ function showDay(r) {
   if (n) toast('この日の日報は送信済みです。直して送り直せます');
 }
 $('nm').onchange = load;
+
+/* これまでの入力（過去分を直したいとき 2026-11-19） */
+var histDays = 31, HIST_START = '2026-11-11';   // この画面を使い始めた日（それより前は旧フォーム）
+function ymd(d) { var x = new Date(d); x.setMinutes(x.getMinutes() - x.getTimezoneOffset()); return x.toISOString().slice(0, 10); }
+function openHist() {
+  var name = $('nm').value;
+  if (!name) return toast('先に氏名を選んでください');
+  if (dirty && !openHist.ok) { openHist.ok = true; return toast('送信していない内容があります。もう一度押すと一覧を開きます（入力中の内容は消えます）', 5000); }
+  openHist.ok = false;
+  $('f').hidden = true; $('done').hidden = true; $('hist').hidden = false;
+  $('histWho').textContent = name + 'さんのこれまでの入力';
+  $('histList').innerHTML = '<li class="note">読み込み中…</li>';
+  window.scrollTo(0, 0);
+  run.withSuccessHandler(function (rows) {
+    var map = {}; rows.forEach(function (r) { map[r.date] = r; });
+    var html = [], t = new Date(today() + 'T00:00:00');
+    for (var i = 0; i < histDays; i++) {
+      var dt = new Date(t.getTime() - i * 86400000), key = ymd(dt), r = map[key], wd = dt.getDay();
+      if (key < HIST_START) { html.push('<li class="note">' + HIST_START.slice(5).replace('-', '/') + 'より前は、前のGoogleフォームで送った分です（この画面には出ません）</li>'); break; }
+      var label = (dt.getMonth() + 1) + '/' + dt.getDate() + '（' + '日月火水木金土'[wd] + '）';
+      var badge = r && r.sent ? '<span class="badge ok">送信済み</span>' : wd === 0 && !r ? '<span class="badge off">休み？</span>' : '<span class="badge ng">未送信</span>';
+      var body = '';
+      if (r) {
+        if (r.works) body += '<small>作業 ' + r.works + '件' + (r.workText.length ? '：' + esc(r.workText.join('、')) : '') + '</small>';
+        r.sales.forEach(function (s) {
+          body += '<span class="s">売上　' + esc(s.customer) + (s.work ? '（' + esc(s.work) + '）' : '') + ' ' +
+            (s.status === '継続中' ? '<span class="badge cont">継続中</span>' : '') + (s.invoice === '作成済み' ? '<span class="badge off">請求書済</span>' : '') + '</span>';
+        });
+      } else body = '<small>入力なし</small>';
+      html.push('<li><button type="button" data-date="' + key + '"' + (r ? '' : ' class="none"') + '><span class="top"><b>' + label + '</b>' + badge + '</span>' + body + '</button></li>');
+    }
+    $('histList').innerHTML = html.join('');
+    $('histMore').hidden = i < histDays;
+    $('histList').querySelectorAll('[data-date]').forEach(function (b) {
+      b.onclick = function () { $('hist').hidden = true; $('f').hidden = false; $('d').value = b.dataset.date; dirty = false; load(); window.scrollTo(0, 0); };
+    });
+  }).withFailureHandler(function (e) { $('histList').innerHTML = ''; fail(e); }).apiList(KEY, name, histDays + 1);
+}
+$('openHist').onclick = openHist;
+$('histMore').onclick = function () { histDays += 31; openHist.ok = true; openHist(); };
+$('histClose').onclick = function () { $('hist').hidden = true; $('f').hidden = false; };
 $('d').onchange = load;
 
 function newSale() { return { t: 'u', id: '', customer: '', code: '', work: '', status: '完了', hours: {}, parts: [{ name: '', qty: '1' }] }; }
