@@ -39,6 +39,9 @@ textarea{min-height:64px;resize:vertical}
 .choose button{font:inherit;font-size:16px;font-weight:700;border-radius:10px;padding:14px 8px;cursor:pointer;border:1.5px solid var(--rule);background:var(--paper);color:var(--ink);display:flex;flex-direction:column;align-items:center}
 .choose button small{font-weight:400;font-size:12px;color:var(--muted)}
 .choose button.u{border-color:var(--blue);color:var(--blue)}
+.openlist{display:flex;flex-direction:column;gap:6px}
+.openlist button{font:inherit;font-size:15px;text-align:left;border:1.5px solid var(--blue);border-radius:10px;padding:9px 12px;background:var(--blue-soft);color:var(--ink);cursor:pointer;display:flex;flex-direction:column}
+.openlist button small{font-size:12px;color:var(--muted)}
 .chips{display:flex;flex-wrap:wrap;gap:6px}
 .chips label{font-size:14px;border:1.5px solid var(--rule);border-radius:99px;padding:4px 10px;display:flex;gap:4px;align-items:center}
 .chips input{width:auto;margin:0}
@@ -102,6 +105,10 @@ hr{border:0;border-top:1px dashed var(--rule);margin:4px 0}
         <button type="button" id="addS">作業<small>配送・点検・事務など</small></button>
       </div>
     </div>
+    <div class="field" id="openField" hidden>
+      <span class="label">続いている現場（継続中）から選ぶ</span>
+      <div class="openlist" id="openList"></div>
+    </div>
     <hr>
     <div class="grid2">
       <div class="field"><label class="label" for="tam">明日午前の予定</label><textarea id="tam"></textarea></div>
@@ -152,7 +159,7 @@ var run = (function () {
   }
   return make(null, null);
 })();
-var INIT = null, entries = [], dirty = false;
+var INIT = null, entries = [], dirty = false, OPEN = [];
 var $ = function (id) { return document.getElementById(id); };
 function yen(n) { return n.toLocaleString('ja-JP') + '円'; }
 function esc(s) { return String(s == null ? '' : s).replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); }
@@ -250,6 +257,7 @@ function showDay(r) {
   entries = r.works.map(function (w) {
     return { t: 's', slot: w['時間帯'], text: w['作業内容'], categories: w['作業区分'] ? w['作業区分'].split(', ') : [], status: w['完了状況'] };
   }).concat(r.sales.map(function (s) { s.t = 'u'; return s; }));
+  OPEN = r.open || [];
   draw();
   if (n) toast('この日の日報は送信済みです。直して送り直せます');
 }
@@ -301,7 +309,28 @@ function newSale() { return { t: 'u', id: '', customer: '', code: '', work: '', 
 $('addU').onclick = function () { var s = newSale(); var me = $('nm').value; if (INIT.workers.indexOf(me) !== -1) s.hours[me] = 1; entries.push(s); draw(); };
 $('addS').onclick = function () { entries.push({ t: 's', slot: '午前', text: '', categories: [], status: 'すべて完了' }); draw(); };
 
+/* 継続中の現場を選ぶ（お客様名などを打ち直さない 2026-11-21）。同じ売上の続きとして入る */
+function drawOpen() {
+  var have = {}; entries.forEach(function (e) { if (e.id) have[e.id] = 1; });
+  var list = OPEN.filter(function (s) { return !have[s.id]; });
+  $('openField').hidden = !list.length;
+  $('openList').innerHTML = list.map(function (s, i) {
+    var d = String(s.date || '').split('-');
+    return '<button type="button" data-open="' + i + '"><b>' + esc(s.customer) + (s.work ? '（' + esc(s.work) + '）' : '') + '</b>' +
+      '<small>' + (d[1] ? Number(d[1]) + '/' + Number(d[2]) + 'から継続中' : '継続中') + (hoursText(s.hours) ? '　' + esc(hoursText(s.hours)) : '') + '</small></button>';
+  }).join('');
+  $('openList').querySelectorAll('[data-open]').forEach(function (b) {
+    b.onclick = function () {
+      var s = JSON.parse(JSON.stringify(list[Number(b.dataset.open)])); s.t = 'u';
+      entries.push(s); dirty = true; draw();
+      var els = $('entries').children; if (els.length) els[els.length - 1].scrollIntoView({ behavior: 'smooth', block: 'start' });
+      toast('続きの現場を入れました。今日の作業者と時間を足してください（時間はこれまでの合計です）', 5000);
+    };
+  });
+}
+
 function draw() {
+  drawOpen();
   var box = $('entries'); box.innerHTML = '';
   $('empty').hidden = entries.length > 0;
   entries.forEach(function (e, i) {
