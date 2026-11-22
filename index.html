@@ -305,7 +305,7 @@ $('histMore').onclick = function () { histDays += 31; openHist.ok = true; openHi
 $('histClose').onclick = function () { $('hist').hidden = true; $('f').hidden = false; };
 $('d').onchange = load;
 
-function newSale() { return { t: 'u', id: '', customer: '', code: '', work: '', status: '完了', hours: {}, parts: [{ name: '', qty: '1' }] }; }
+function newSale() { return { t: 'u', id: '', customer: '', code: '', work: '', note: '', status: '完了', hours: {}, parts: [{ name: '', qty: '1' }] }; }
 $('addU').onclick = function () { var s = newSale(); var me = $('nm').value; if (INIT.workers.indexOf(me) !== -1) s.hours[me] = 1; entries.push(s); draw(); };
 $('addS').onclick = function () { entries.push({ t: 's', slot: '午前', text: '', categories: [], status: 'すべて完了' }); draw(); };
 
@@ -321,7 +321,7 @@ function drawOpen() {
   }).join('');
   $('openList').querySelectorAll('[data-open]').forEach(function (b) {
     b.onclick = function () {
-      var s = JSON.parse(JSON.stringify(list[Number(b.dataset.open)])); s.t = 'u';
+      var s = JSON.parse(JSON.stringify(list[Number(b.dataset.open)])); s.t = 'u'; s.note = '';
       entries.push(s); dirty = true; draw();
       var els = $('entries').children; if (els.length) els[els.length - 1].scrollIntoView({ behavior: 'smooth', block: 'start' });
       toast('続きの現場を入れました。今日の作業者と時間を足してください（時間はこれまでの合計です）', 5000);
@@ -357,6 +357,7 @@ function draw() {
         '<button type="button" data-st="継続中"' + (st === '継続中' ? ' class="on"' : '') + '>継続中（後日も続く）</button></div></div>' +
         '<div class="grid2"><div class="field"><label class="label">お客様</label><input list="custs" data-k="customer" value="' + esc(e.customer) + '" placeholder="名前の一部"></div>' +
         '<div class="field"><label class="label">作業内容</label><input data-k="work" value="' + esc(e.work) + '" placeholder="例 浴室水栓取替"></div></div>' +
+        '<div class="field"><label class="label">この日にやったこと（現場進行表に出ます）</label><input data-k="note" value="' + esc(e.note || '') + '" placeholder="例 配管、給湯器取付（空なら作業内容）"></div>' +
         '<div class="field"><span class="label">作業者と時間（0.5時間から）</span><div data-workers style="display:flex;flex-direction:column;gap:5px"></div></div>' +
         '<div class="field"><span class="label">部材と数量</span><div data-parts style="display:flex;flex-direction:column;gap:6px"></div><button type="button" class="add" data-addp>＋ 部材を追加</button></div>';
       var wbox = el.querySelector('[data-workers]');
@@ -409,7 +410,7 @@ $('save').onclick = function () {
     name: name, date: $('d').value, tomorrowAm: $('tam').value, tomorrowPm: $('tpm').value, trouble: $('trb').value,
     works: entries.filter(function (e) { return e.t === 's'; }),
     sales: entries.filter(function (e) { return e.t === 'u'; }).map(function (e) {
-      return { id: e.id, baseUpdated: e.baseUpdated, customer: e.customer, code: e.code, work: e.work, status: e.status === '継続中' ? '継続中' : '完了', hours: e.hours, parts: e.parts };
+      return { id: e.id, baseUpdated: e.baseUpdated, customer: e.customer, code: e.code, work: e.work, note: e.note || '', status: e.status === '継続中' ? '継続中' : '完了', hours: e.hours, parts: e.parts };
     })
   };
   run.withSuccessHandler(function (r) {
