@@ -54,7 +54,7 @@ textarea{min-height:64px;resize:vertical}
 .seg{display:grid;grid-template-columns:1fr 1fr;gap:6px}
 .seg button{font:inherit;font-size:15px;font-weight:700;border-radius:8px;padding:10px 6px;cursor:pointer;border:1.5px solid var(--rule);background:var(--paper);color:var(--ink)}
 .seg button.on{border-color:var(--blue);background:var(--blue);color:var(--paper)}
-.part{display:grid;grid-template-columns:1fr 70px 28px;gap:6px;align-items:center}
+.part{display:grid;grid-template-columns:1fr 56px 84px 28px;gap:6px;align-items:center}
 .add{font:inherit;font-size:15px;border:1.5px dashed var(--rule);color:var(--muted);background:transparent;border-radius:8px;padding:8px;cursor:pointer}
 .done{align-items:center;text-align:center;padding:28px 18px}
 .done .mark{width:64px;height:64px;border-radius:50%;background:var(--ok);color:#fff;font-size:36px;line-height:64px;font-weight:700}
@@ -106,7 +106,7 @@ hr{border:0;border-top:1px dashed var(--rule);margin:4px 0}
       </div>
     </div>
     <div class="field" id="openField" hidden>
-      <span class="label">続いている現場（継続中）から選ぶ</span>
+      <span class="label">続いている現場（継続中）　今日作業した現場を押すと開きます</span>
       <div class="openlist" id="openList"></div>
     </div>
     <hr>
@@ -256,7 +256,8 @@ function showDay(r) {
   $('trb').value = n ? n['困りごと・連絡'] : '';
   entries = r.works.map(function (w) {
     return { t: 's', slot: w['時間帯'], text: w['作業内容'], categories: w['作業区分'] ? w['作業区分'].split(', ') : [], status: w['完了状況'] };
-  }).concat(r.sales.map(function (s) { s.t = 'u'; return s; }));
+  }).concat(r.sales.filter(function (s) { return !(s.status === '継続中' && s.date < $('d').value && !s.note); })
+    .map(function (s) { s.t = 'u'; return s; }));
   OPEN = r.open || [];
   draw();
   if (n) toast('この日の日報は送信済みです。直して送り直せます');
@@ -305,7 +306,7 @@ $('histMore').onclick = function () { histDays += 31; openHist.ok = true; openHi
 $('histClose').onclick = function () { $('hist').hidden = true; $('f').hidden = false; };
 $('d').onchange = load;
 
-function newSale() { return { t: 'u', id: '', customer: '', code: '', work: '', note: '', status: '完了', hours: {}, parts: [{ name: '', qty: '1' }] }; }
+function newSale() { return { t: 'u', id: '', customer: '', code: '', work: '', note: '', status: '完了', hours: {}, parts: [{ name: '', qty: '1', price: '' }] }; }
 $('addU').onclick = function () { var s = newSale(); var me = $('nm').value; if (INIT.workers.indexOf(me) !== -1) s.hours[me] = 1; entries.push(s); draw(); };
 $('addS').onclick = function () { entries.push({ t: 's', slot: '午前', text: '', categories: [], status: 'すべて完了' }); draw(); };
 
@@ -321,7 +322,7 @@ function drawOpen() {
   }).join('');
   $('openList').querySelectorAll('[data-open]').forEach(function (b) {
     b.onclick = function () {
-      var s = JSON.parse(JSON.stringify(list[Number(b.dataset.open)])); s.t = 'u'; s.note = '';
+      var s = JSON.parse(JSON.stringify(list[Number(b.dataset.open)])); s.t = 'u'; s.note = ''; s.picked = true;
       entries.push(s); dirty = true; draw();
       var els = $('entries').children; if (els.length) els[els.length - 1].scrollIntoView({ behavior: 'smooth', block: 'start' });
       toast('続きの現場を入れました。今日の作業者と時間を足してください（時間はこれまでの合計です）', 5000);
@@ -338,7 +339,7 @@ function draw() {
     el.className = 'entry' + (e.t === 'u' ? ' uri' : '');
     var me = $('nm').value;
     var who = e.t === 'u' && e.enteredBy ? '<span class="who">' + esc(e.enteredBy) + 'が入力' + (e.updatedBy && e.updatedBy !== e.enteredBy ? '・' + esc(e.updatedBy) + 'が修正' : '') + (e.invoice === '作成済み' ? '・請求書作成済み' : '') + '</span>' : '';
-    var head = '<div class="hd"><span class="tag ' + (e.t === 'u' ? 'uri">' : 'sagyo">') + (i + 1) + '．' + (e.t === 'u' ? '売上' : '作業') + '</span>' + who + '<button type="button" class="link" data-del>この行を消す</button></div>' + (e.message ? '<div class="msg">' + esc(e.message) + '</div>' : '');
+    var head = '<div class="hd"><span class="tag ' + (e.t === 'u' ? 'uri">' : 'sagyo">') + (i + 1) + '．' + (e.t === 'u' ? '売上' : '作業') + '</span>' + who + '<button type="button" class="link" data-del>' + (e.t === 'u' && (e.picked || e.date && e.date < $('d').value) ? '閉じる（今日は作業なし）' : 'この行を消す') + '</button></div>' + (e.message ? '<div class="msg">' + esc(e.message) + '</div>' : '');
     if (e.t === 's') {
       el.innerHTML = head +
         '<div class="grid2" style="grid-template-columns:96px 1fr"><select data-k="slot" aria-label="時間帯">' + INIT.slots.map(function (v) { return '<option' + (v === e.slot ? ' selected' : '') + '>' + v + '</option>'; }).join('') + '</select>' +
@@ -359,7 +360,7 @@ function draw() {
         '<div class="field"><label class="label">作業内容</label><input data-k="work" value="' + esc(e.work) + '" placeholder="例 浴室水栓取替"></div></div>' +
         '<div class="field"><label class="label">この日にやったこと（現場進行表に出ます）</label><input data-k="note" value="' + esc(e.note || '') + '" placeholder="例 配管、給湯器取付（空なら作業内容）"></div>' +
         '<div class="field"><span class="label">作業者と時間（0.5時間から）</span><div data-workers style="display:flex;flex-direction:column;gap:5px"></div></div>' +
-        '<div class="field"><span class="label">部材と数量</span><div data-parts style="display:flex;flex-direction:column;gap:6px"></div><button type="button" class="add" data-addp>＋ 部材を追加</button></div>';
+        '<div class="field"><span class="label">部材・数量・単価（単価は分かれば。円）</span><div data-parts style="display:flex;flex-direction:column;gap:6px"></div><button type="button" class="add" data-addp>＋ 部材を追加</button></div>';
       var wbox = el.querySelector('[data-workers]');
       INIT.workers.forEach(function (n) {
         var h = e.hours[n] || 0;
@@ -374,20 +375,22 @@ function draw() {
       var pbox = el.querySelector('[data-parts]');
       e.parts.forEach(function (p, j) {
         var row = document.createElement('div'); row.className = 'part';
-        row.innerHTML = '<input list="items" aria-label="部材名" value="' + esc(p.name) + '" placeholder="部材名"><input aria-label="数量" inputmode="decimal" style="text-align:right" value="' + esc(p.qty) + '"><button type="button" class="link" aria-label="部材を消す">×</button>';
+        row.innerHTML = '<input list="items" aria-label="部材名" value="' + esc(p.name) + '" placeholder="部材名"><input aria-label="数量" inputmode="decimal" style="text-align:right" value="' + esc(p.qty) + '"><input aria-label="単価（円）" inputmode="numeric" style="text-align:right" value="' + esc(p.price || '') + '" placeholder="単価"><button type="button" class="link" aria-label="部材を消す">×</button>';
         row.children[0].oninput = function () { p.name = this.value; dirty = true; suggest('items', this.value); };
         row.children[0].onfocus = function () { suggest('items', this.value); };
         row.children[1].oninput = function () { p.qty = this.value; dirty = true; };
-        row.children[2].onclick = function () { e.parts.splice(j, 1); dirty = true; draw(); };
+        row.children[2].oninput = function () { p.price = this.value.replace(/[^0-9.]/g, ''); dirty = true; };
+        row.children[3].onclick = function () { e.parts.splice(j, 1); dirty = true; draw(); };
         pbox.appendChild(row);
       });
-      el.querySelector('[data-addp]').onclick = function () { e.parts.push({ name: '', qty: '1' }); draw(); };
+      el.querySelector('[data-addp]').onclick = function () { e.parts.push({ name: '', qty: '1', price: '' }); draw(); };
     }
     el.querySelectorAll('[data-k]').forEach(function (inp) { inp.oninput = inp.onchange = function () { e[inp.dataset.k] = inp.value; dirty = true; }; });
     var ci = el.querySelector('[data-k="customer"]');
     if (ci) { ci.addEventListener('input', function () { suggest('custs', ci.value); }); ci.addEventListener('focus', function () { suggest('custs', ci.value); }); }
     el.querySelectorAll('[data-st]').forEach(function (b) { b.onclick = function () { e.status = b.dataset.st; dirty = true; draw(); }; });
     el.querySelector('[data-del]').onclick = function () {
+      if (e.t === 'u' && (e.picked || e.date && e.date < $('d').value)) { entries.splice(i, 1); draw(); return; }   // 継続中から開いただけ。売上は消さずに1行の一覧へ戻す
       if (e.t === 'u' && e.id) {
         if (el.dataset.ask !== '1') { el.dataset.ask = '1'; this.textContent = 'もう一度押すと消します（作業者全員の日報から消えます）'; return; }
         run.withSuccessHandler(function () { entries.splice(i, 1); draw(); toast('売上を消しました'); }).withFailureHandler(fail).apiDeleteSale(KEY, $('nm').value, e.id);
