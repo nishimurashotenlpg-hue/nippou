@@ -83,6 +83,19 @@ hr{border:0;border-top:1px dashed var(--rule);margin:4px 0}
 .badge.ng{background:var(--red-soft);color:var(--red)}
 .badge.off{background:transparent;color:var(--muted)}
 .badge.cont{background:var(--grey-soft);color:var(--ink)}
+.tabs{display:grid;grid-template-columns:repeat(3,1fr);gap:4px}
+.tabs button{font:inherit;font-size:14px;padding:8px 4px;border:1.5px solid var(--rule);border-radius:8px;background:var(--paper);color:var(--ink);cursor:pointer}
+.tabs button.on{background:var(--blue);border-color:var(--blue);color:#fff;font-weight:700}
+.vnav{display:flex;align-items:center;justify-content:space-between;gap:8px}
+.vnav b{font-size:16px}
+.vnav button{font:inherit;font-size:14px;padding:6px 12px;border:1.5px solid var(--rule);border-radius:8px;background:var(--paper);color:var(--ink);cursor:pointer}
+.vlist{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:8px}
+.vlist>li{border:1.5px solid var(--rule);border-radius:8px;padding:8px 12px;background:var(--paper);display:flex;flex-direction:column;gap:3px;font-size:14px}
+.vlist>li.cont{border-color:var(--blue)}
+.vlist .top{display:flex;justify-content:space-between;align-items:flex-start;gap:8px}
+.vlist small{color:var(--muted);font-size:13px}
+.vlist .days{margin:2px 0 0;padding:0;list-style:none;display:flex;flex-direction:column;gap:2px;font-size:13px}
+.vlist .days b{display:inline-block;min-width:44px}
 </style>
 </head>
 <body>
@@ -95,6 +108,7 @@ hr{border:0;border-top:1px dashed var(--rule);margin:4px 0}
       <div class="field"><label class="label" for="d">日付</label><input id="d" type="date"></div>
     </div>
     <button type="button" class="second" id="openHist">これまでの入力を見る・直す</button>
+    <button type="button" class="second" id="openView">みんなの情報を見る（進行表・売上・日報）</button>
     <h2>今日の仕事</h2>
     <p class="note" id="empty">下のボタンで、仕事を1件ずつ足してください。</p>
     <div id="entries" style="display:flex;flex-direction:column;gap:12px"></div>
@@ -123,6 +137,17 @@ hr{border:0;border-top:1px dashed var(--rule);margin:4px 0}
     <ul class="hlist" id="histList"></ul>
     <button type="button" class="add" id="histMore">もっと前を見る</button>
   </section>
+  <section class="card" id="view" hidden>
+    <div class="hbar"><h2>みんなの情報</h2><button type="button" class="link" id="viewClose">閉じる</button></div>
+    <div class="tabs" role="tablist">
+      <button type="button" data-view="progress">現場進行表</button>
+      <button type="button" data-view="sales">売上一覧</button>
+      <button type="button" data-view="nippou">みんなの日報</button>
+    </div>
+    <div class="vnav" id="vnav" hidden><button type="button" id="vPrev">◀ 前</button><b id="vLabel"></b><button type="button" id="vNext">次 ▶</button></div>
+    <p class="note" id="vNote"></p>
+    <ul class="vlist" id="vList"></ul>
+  </section>
   <section class="card done" id="done" hidden aria-live="polite">
     <div class="mark" aria-hidden="true">✓</div>
     <h2>日報を送信しました</h2>
@@ -146,7 +171,7 @@ var run = (function () {
       withSuccessHandler: function (f) { return make(f, ng); },
       withFailureHandler: function (f) { return make(ok, f); }
     };
-    ['apiInit', 'apiLoad', 'apiList', 'apiSubmit', 'apiDeleteSale'].forEach(function (name) {
+    ['apiInit', 'apiLoad', 'apiList', 'apiView', 'apiSubmit', 'apiDeleteSale'].forEach(function (name) {
       o[name] = function () {
         var args = [].slice.call(arguments);
         fetch(EXEC, { method: 'POST', credentials: 'omit', body: JSON.stringify({ api: name, args: args }) })
@@ -302,6 +327,70 @@ function openHist() {
   }).withFailureHandler(function (e) { $('histList').innerHTML = ''; fail(e); }).apiList(KEY, name, histDays + 1);
 }
 $('openHist').onclick = openHist;
+
+/* みんなの情報（日報データのスプレッドシートの中身を見る 2026-11-24）。見るだけで、ここからは直せない */
+var VIEW = { kind: 'progress', ym: today().slice(0, 7), date: today(), seq: 0 };
+function openView(kind) {
+  if (kind) VIEW.kind = kind;
+  $('f').hidden = true; $('done').hidden = true; $('hist').hidden = true; $('view').hidden = false;
+  document.querySelectorAll('[data-view]').forEach(function (b) { b.classList.toggle('on', b.dataset.view === VIEW.kind); });
+  var k = VIEW.kind, arg = k === 'sales' ? VIEW.ym : k === 'nippou' ? VIEW.date : '';
+  $('vnav').hidden = k === 'progress';
+  if (k === 'sales') $('vLabel').textContent = Number(VIEW.ym.slice(0, 4)) + '年' + Number(VIEW.ym.slice(5)) + '月';
+  if (k === 'nippou') { var dt = new Date(VIEW.date + 'T00:00:00'); $('vLabel').textContent = (dt.getMonth() + 1) + '/' + dt.getDate() + '（' + '日月火水木金土'[dt.getDay()] + '）'; }
+  $('vNext').disabled = k === 'sales' ? VIEW.ym >= today().slice(0, 7) : VIEW.date >= today();
+  $('vNote').textContent = { progress: '継続中の現場が上。直近60日に動いた現場です。日付ごとに、作業した人とやったこと。', sales: '入力された売上（消したものは出ません）。直すときは「これまでの入力」からその日を開いてください。', nippou: 'その日に送られた日報と、作業した現場。' }[k];
+  $('vList').innerHTML = '<li class="note" style="border:0">読み込み中…</li>';
+  window.scrollTo(0, 0);
+  var seq = ++VIEW.seq;
+  run.withSuccessHandler(function (r) { if (seq === VIEW.seq) $('vList').innerHTML = viewHtml[k](r); })
+    .withFailureHandler(function (e) { $('vList').innerHTML = ''; fail(e); }).apiView(KEY, k, arg);
+}
+function md(d) { d = String(d || ''); return d.length >= 10 ? Number(d.slice(5, 7)) + '/' + Number(d.slice(8, 10)) : d; }
+function stBadge(st, inv) {
+  return (st === '継続中' ? '<span class="badge ok">継続中</span>' : '<span class="badge cont">完了</span>') +
+    (inv === '作成済み' ? '<span class="badge off">請求書済</span>' : inv === '作成後に変更あり' ? '<span class="badge ng">請求書後に変更</span>' : '');
+}
+var viewHtml = {
+  progress: function (rows) {
+    if (!rows.length) return '<li>まだありません</li>';
+    return rows.map(function (r) {
+      return '<li' + (r.status === '継続中' ? ' class="cont"' : '') + '><div class="top"><b>' + esc(r.customer) + (r.work ? '（' + esc(r.work) + '）' : '') + '</b><span>' + stBadge(r.status, r.invoice) + '</span></div>' +
+        '<small>' + md(r.date) + 'から　' + esc(r.labor || '') + '</small><ul class="days">' + r.days.map(function (d) {
+          return '<li><b>' + md(d.date) + '</b>' + esc(d.workers || '') + (d.note ? '：' + esc(d.note) : '') + '</li>';
+        }).join('') + '</ul></li>';
+    }).join('');
+  },
+  sales: function (rows) {
+    if (!rows.length) return '<li>この月の売上はありません</li>';
+    return '<li class="note" style="border:0;padding:0">' + rows.length + '件</li>' + rows.map(function (r) {
+      return '<li' + (r.status === '継続中' ? ' class="cont"' : '') + '><div class="top"><b>' + md(r.date) + '　' + esc(r.customer) + (r.isNew ? '<small>（新規）</small>' : '') + '</b><span>' + stBadge(r.status, r.invoice) + '</span></div>' +
+        (r.work ? '<span>' + esc(r.work) + '</span>' : '') +
+        '<small>作業者 ' + esc(r.labor || 'なし') + '</small>' + (r.parts ? '<small>部材 ' + esc(r.parts) + '</small>' : '') + '<small>入力 ' + esc(r.by || '') + '</small></li>';
+    }).join('');
+  },
+  nippou: function (r) {
+    var html = r.people.map(function (p) {
+      return '<li><div class="top"><b>' + esc(p.name) + '</b>' + (p.sent ? '<span class="badge ok">送信済み</span>' : '<span class="badge ng">日報未送信</span>') + '</div>' +
+        p.works.map(function (w) { return '<span>作業　' + esc(w.slot ? w.slot + '　' : '') + esc(w.text) + (w.status && w.status !== 'すべて完了' ? '<small>（' + esc(w.status) + '）</small>' : '') + '</span>'; }).join('') +
+        p.sales.map(function (s) { return '<span>売上　' + esc(s.customer) + (s.work ? '（' + esc(s.work) + '）' : '') + (s.status === '継続中' ? ' <span class="badge ok">継続中</span>' : '') + '</span>'; }).join('') +
+        (p.am || p.pm ? '<small>明日　午前 ' + esc(p.am || '—') + '／午後 ' + esc(p.pm || '—') + '</small>' : '') +
+        (p.trouble ? '<small style="color:var(--red)">困りごと・連絡　' + esc(p.trouble) + '</small>' : '') + '</li>';
+    });
+    if (r.notSent.length) html.push('<li class="note" style="border:0;padding:0">まだ送っていない人：' + esc(r.notSent.join('・')) + '</li>');
+    return html.join('') || '<li>この日の日報はありません</li>';
+  }
+};
+document.querySelectorAll('[data-view]').forEach(function (b) { b.onclick = function () { openView(b.dataset.view); }; });
+function vMove(n) {
+  if (VIEW.kind === 'sales') { var d = new Date(VIEW.ym + '-01T00:00:00'); d.setMonth(d.getMonth() + n); VIEW.ym = ymd(d).slice(0, 7); }
+  else { var t = new Date(VIEW.date + 'T00:00:00'); t.setDate(t.getDate() + n); VIEW.date = ymd(t); }
+  openView();
+}
+$('vPrev').onclick = function () { vMove(-1); };
+$('vNext').onclick = function () { vMove(1); };
+$('openView').onclick = function () { openView(); };
+$('viewClose').onclick = function () { $('view').hidden = true; $('f').hidden = false; };
 $('histMore').onclick = function () { histDays += 31; openHist.ok = true; openHist(); };
 $('histClose').onclick = function () { $('hist').hidden = true; $('f').hidden = false; };
 $('d').onchange = load;
